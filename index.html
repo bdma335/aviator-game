@@ -97,10 +97,17 @@
 
         .plane-icon {
             position: absolute;
-            font-size: 3em;
+            width: 80px;
+            height: 80px;
             z-index: 5;
             transition: all 0.1s linear;
             filter: drop-shadow(0 0 15px rgba(239, 68, 68, 1));
+        }
+
+        .plane-icon.crashed {
+            opacity: 0;
+            transform: scale(2) rotate(180deg);
+            transition: all 0.5s ease;
         }
 
         .status-text {
@@ -349,7 +356,19 @@
         <div class="game-canvas" id="gameCanvas">
             <canvas id="canvas"></canvas>
             <div class="multiplier-overlay" id="multiplier">1.00x</div>
-            <div class="plane-icon" id="plane">✈️</div>
+            <svg class="plane-icon" id="plane" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <g transform="rotate(-20 50 50)">
+                    <!-- Plane body -->
+                    <path d="M20,50 L35,45 L50,30 L55,30 L60,45 L80,48 L85,50 L80,52 L60,55 L55,70 L50,70 L35,55 L20,50 Z" 
+                          fill="#ef4444" stroke="#dc2626" stroke-width="2"/>
+                    <!-- Cockpit -->
+                    <ellipse cx="52" cy="40" rx="6" ry="8" fill="#1a1a1a" opacity="0.6"/>
+                    <!-- Wing details -->
+                    <line x1="50" y1="30" x2="50" y2="70" stroke="#dc2626" stroke-width="1.5"/>
+                    <!-- Tail -->
+                    <path d="M20,50 L15,48 L15,52 Z" fill="#dc2626"/>
+                </g>
+            </svg>
             <div class="status-text" id="status">Place your bet!</div>
         </div>
 
@@ -514,10 +533,16 @@
         }
 
         function updatePlanePosition() {
-            if (curvePoints.length > 0) {
+            if (curvePoints.length > 1) {
                 const lastPoint = curvePoints[curvePoints.length - 1];
-                planeEl.style.left = lastPoint.x + 'px';
-                planeEl.style.top = lastPoint.y + 'px';
+                const prevPoint = curvePoints[curvePoints.length - 2];
+                
+                // Calculate angle based on curve direction
+                const angle = Math.atan2(lastPoint.y - prevPoint.y, lastPoint.x - prevPoint.x) * (180 / Math.PI);
+                
+                planeEl.style.left = (lastPoint.x - 40) + 'px';
+                planeEl.style.top = (lastPoint.y - 40) + 'px';
+                planeEl.style.transform = `rotate(${angle}deg)`;
                 planeEl.style.display = 'block';
             }
         }
@@ -537,17 +562,26 @@
             crashPoint = generateCrashPoint();
             curvePoints = [];
             planeEl.style.display = 'block';
-            planeEl.style.opacity = '1';
+            planeEl.classList.remove('crashed');
             multiplierEl.classList.remove('crashed');
             statusEl.textContent = '🚀 Flying...';
 
             let startTime = Date.now();
+            let startX = 50;
+            let startY = canvas.height - 50;
+            
             gameInterval = setInterval(() => {
                 const elapsed = (Date.now() - startTime) / 1000;
                 multiplier = 1 + (elapsed * 0.5);
                 
-                const x = (elapsed / 20) * canvas.width;
-                const y = canvas.height - ((multiplier - 1) / 10) * canvas.height;
+                // Create a curved path (exponential-like curve)
+                const progress = elapsed / 15; // Normalize time
+                const x = startX + (progress * canvas.width * 0.9);
+                
+                // Exponential curve formula for realistic flight path
+                const curveHeight = Math.pow(progress, 1.5) * canvas.height * 0.8;
+                const y = startY - curveHeight;
+
                 curvePoints.push({ x, y });
 
                 drawCurve();
@@ -565,7 +599,7 @@
             isPlaying = false;
             multiplierEl.classList.add('crashed');
             multiplierEl.textContent = crashPoint.toFixed(2) + 'x';
-            planeEl.style.opacity = '0';
+            planeEl.classList.add('crashed');
             statusEl.textContent = '💥 CRASHED!';
             
             // Process active bets
@@ -589,6 +623,7 @@
                     multiplier = 1.00;
                     multiplierEl.textContent = '1.00x';
                     multiplierEl.classList.remove('crashed');
+                    planeEl.classList.remove('crashed');
                 }
             }, 3000);
         }
