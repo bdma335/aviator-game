@@ -473,6 +473,10 @@
         let stats = { totalGames: 0, totalWon: 0, wins: 0, biggestWin: 0 };
         let history = [];
 
+        // Safe boundaries for plane and graph
+        const PADDING = 100; // Padding from edges
+        const MAX_HEIGHT_RATIO = 0.75; // Use only 75% of canvas height
+
         function resizeCanvas() {
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
@@ -567,22 +571,36 @@
             statusEl.textContent = '🚀 Flying...';
 
             let startTime = Date.now();
-            let startX = 50;
-            let startY = canvas.height - 50;
+            
+            // Start position with padding
+            const startX = PADDING;
+            const startY = canvas.height - PADDING;
+            
+            // Calculate max usable dimensions
+            const maxWidth = canvas.width - (PADDING * 2);
+            const maxHeight = canvas.height * MAX_HEIGHT_RATIO;
             
             gameInterval = setInterval(() => {
                 const elapsed = (Date.now() - startTime) / 1000;
                 multiplier = 1 + (elapsed * 0.5);
                 
-                // Create a curved path (exponential-like curve)
-                const progress = elapsed / 15; // Normalize time
-                const x = startX + (progress * canvas.width * 0.9);
+                // Normalize progress (0 to 1) based on crash point
+                const progress = Math.min(multiplier / crashPoint, 1);
                 
-                // Exponential curve formula for realistic flight path
-                const curveHeight = Math.pow(progress, 1.5) * canvas.height * 0.8;
-                const y = startY - curveHeight;
+                // X position: moves from left to right within boundaries
+                const x = startX + (progress * maxWidth);
+                
+                // Y position: exponential curve that stays within boundaries
+                // Using logarithmic scale to prevent going too high
+                const heightProgress = Math.log(1 + progress * 9) / Math.log(10); // Logarithmic scaling
+                const y = startY - (heightProgress * maxHeight);
 
                 curvePoints.push({ x, y });
+
+                // Keep only recent points to prevent memory issues
+                if (curvePoints.length > 200) {
+                    curvePoints.shift();
+                }
 
                 drawCurve();
                 updatePlanePosition();
